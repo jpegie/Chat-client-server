@@ -1,7 +1,4 @@
-import socket
-
-
-class Member:
+class User:
     address = tuple[str, int]  # [ip, id]
     name = 'user'
 

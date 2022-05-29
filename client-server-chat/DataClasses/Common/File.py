@@ -1,4 +1,4 @@
-from DataClasses.FIleDescriptor import FileDescriptor
+from DataClasses.Common.FileDescriptor import FileDescriptor
 
 
 class File:
@@ -23,25 +23,3 @@ class File:
 
     def set_gap(self, gap_size):
         self.__gap = bytearray([1]*gap_size)
-
-
-class ConnectingInfo:
-    sender_name = ''
-    message = []
-
-    def __init__(self, sender_name='', message=None):
-        self.sender_name = sender_name
-        if message is not None:
-            self.message = message
-
-
-class Data:
-    sender_name = ''
-    receiver_name = ''
-    message = ''
-
-    def __init__(self, sender_name='', receiver_name='', message=''):
-        self.message = message
-        self.sender_name = sender_name
-        self.receiver_name = receiver_name
-
