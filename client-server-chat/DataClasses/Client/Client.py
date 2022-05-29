@@ -83,23 +83,27 @@ class Client:
         self.name = name
         pickled_data = pickle.dumps(ConnectionRequest(sender_name=self.name))
         self.server_socket.settimeout(5)
+
         try:
             self.server_socket.sendto(pickled_data, self.server_addr)
-            bin_data, server = self.server_socket.recvfrom(1024)
-            message = pickle.loads(bin_data)
-            if message.message == 'pfg_ip_response_serv':
-                print('Received confirmation')
-                print(f"Server ip:{str(server[0])}, port: {str(server[1])}")
-                if message:
-                    self.__add_message_to_chat(only_str=f"🔴 server / ip:{str(server[0])}, port: {str(server[1])}")
-                self.server_addr = server
-                self.ui_conn_button.setEnabled(False)
-                self.ui_login.setEnabled(False)
+            binary_message, address = self.server_socket.recvfrom(1024)
+            message = pickle.loads(binary_message)
+            if message:
+                if type(message) is SimpleMessage:
+                    if message.message == 'pfg_ip_response_serv':
+                        print(f"Server ip:{str(address[0])}, port: {str(address[1])}")
+                        self.__add_message_to_chat(only_str=f"Connected to chat [{str(address[0])} : {str(address[1])}]")
+                        self.server_addr = address
+                        self.ui_conn_button.setEnabled(False)
+                        self.ui_login.setEnabled(False)
+                    else:
+                        self.__add_message_to_chat(message)
+                elif type(message) is CurrentUsers:
+                    self.__update_users(message.users)
         except Exception as e:
             print(str(e))
             self.__add_message_to_chat(only_str=str(e))
-        else:
-            self.__add_message_to_chat(message)
+
         self.server_socket.settimeout(None)
 
     def __send_file(self, receiver=''):
@@ -178,10 +182,18 @@ class Client:
         self.ui_chat.addItem(f"🟢 {descriptor.file_name}{descriptor.file_extension} is saved")
 
     def __add_message_to_chat(self, message=None, only_str=''):
-        if only_str != '' and message is not None:
+        if only_str != '' and message is None:
             self.ui_chat.addItem(f"🔴 {only_str}")
         elif message is not None:
             self.ui_chat.addItem(f"🔴 {message.sender_name + ': ' if message.sender_name != 's' else ''}{message.message}")
+
+    def __update_users(self, users):
+        self.ui_current_users.clear()
+        for user in users:
+            if user.name != self.name:
+                self.ui_current_users.addItem(user.name)
+        if self.ui_current_users.count() != 0:
+            self.ui_current_users.setCurrentIndex(0)
 
     def __listen(self):
         current_getting_files = {}  # descriptor : {block_index : block_data}
@@ -211,9 +223,4 @@ class Client:
                     self.__add_message_to_chat(message)
 
                 elif type(message) is CurrentUsers:
-                    self.ui_current_users.clear()
-                    for user in message.users:
-                        if user.name != self.name:
-                            self.ui_current_users.addItem(user.name)
-                    if self.ui_current_users.count() != 0:
-                        self.ui_current_users.setCurrentIndex(0)
+                    self.__update_users(message.users)

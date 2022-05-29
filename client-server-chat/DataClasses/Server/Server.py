@@ -37,6 +37,9 @@ class Server:
     host = ''
     port = 6965
 
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((host, port))
+
     users = []
 
     def __init__(self):
@@ -45,37 +48,37 @@ class Server:
     def listen(self):
         threading.Thread(target=self.__listen).start()
 
-    def send_message(self, data, sock):
+    def send_message(self, data):
         receiver = first(x for x in self.users if x.name == data.receiver_name)
         sender = first(x for x in self.users if x.name == data.sender_name)
-        if type(data) is SimpleMessage and receiver is None and sender is not None:
+        if (type(data) is SimpleMessage) and (receiver is None) and (sender is not None):
             data.sender_name = 's'
             data.message = f'No user such as {data.receiver_name}'
             pickled_data = pickle.dumps(data)
-            sock.sendto(pickled_data, sender.address)
-        elif type(data) is SimpleMessage and receiver is not None and sender is not None:
+            self.sock.sendto(pickled_data, sender.address)
+        elif (type(data) is SimpleMessage) and (receiver is not None) and (sender is not None):
             pickled_data = pickle.dumps(data)
-            sock.sendto(pickled_data, sender.address)
-            sock.sendto(pickled_data, receiver.address)
+            self.sock.sendto(pickled_data, sender.address)
+            self.sock.sendto(pickled_data, receiver.address)
         elif receiver is not None:
             pickled_data = pickle.dumps(data)
-            sock.sendto(pickled_data, receiver.address)
+            self.sock.sendto(pickled_data, receiver.address)
 
-    def notify_about_new_user(self, user, sock):
+    def notify_about_new_user(self, user):
         data = SimpleMessage(sender_name="s", message=f"Welcome {user.name} to this chat!")
         for u in self.users:
             data.receiver_name = u.name
-            self.send_message(data, sock)
+            self.send_message(data)
 
-    def notify_about_current_users(self, sock):
+    def notify_about_current_users(self):
         for u in self.users:
-            self.send_message(CurrentUsers(receiver_name=u.name, users=self.users), sock)
+            self.send_message(CurrentUsers(receiver_name=u.name, users=self.users))
             self.send_message(SimpleMessage(sender_name='s',
                                             receiver_name=u.name,
                                             message=("Current users: " +
-                                                     ", ".join(m.name for m in self.users))), sock)
+                                                     ", ".join(m.name for m in self.users))))
 
-    def __send_file(self, file_key, files, sock):
+    def send_file(self, file_key, files):
         blocks = files[file_key]
         receiver = first(x for x in self.users if x.name == file_key.receiver_name)
         sender = first(x for x in self.users if x.name == file_key.sender_name)
@@ -84,7 +87,7 @@ class Server:
             print(f"Blocks to send = {len(blocks)}")
             for block_key in blocks.keys():
                 pickled_data = pickle.dumps(blocks[block_key])
-                sock.sendto(pickled_data, receiver.address)
+                self.sock.sendto(pickled_data, receiver.address)
                 time.sleep(DELAY_TO_SEND_FILE)  # THE WORST WAY NOT TO LOSE DATA
 
             files.pop(file_key)
@@ -93,10 +96,11 @@ class Server:
                 message=f'File {file_key.file_name}{file_key.file_extension} delivered to {file_key.receiver_name}',
                 sender_name='s',
                 receiver_name=file_key.receiver_name)
+            # self.send_message(message)
             pickled_message = pickle.dumps(message)
-            sock.sendto(pickled_message, sender.address)
+            self.sock.sendto(pickled_message, sender.address)
 
-    def __is_username_unique(self, name):
+    def is_username_unique(self, name):
         for user in self.users:
             if user.name == name:
                 return False
@@ -106,59 +110,56 @@ class Server:
 
         files = {}  # descriptors : [] array of File - blocks of real file
 
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        server_socket.bind((self.host, self.port))
-
         print(f'Listening at {self.host} : {self.port}')
 
         while True:
-            bin_data, addr = server_socket.recvfrom(UDP_MAX_SIZE)
-            if not bin_data:
+            binary_message, addr = self.sock.recvfrom(UDP_MAX_SIZE)
+            if not binary_message:
                 continue
             else:
                 try:
-                    data = pickle.loads(bin_data)
+                    message = pickle.loads(binary_message)
                 except Exception as e:
                     print(str(e))
                     continue
 
-                if type(data) is ConnectionRequest:
-                    if not self.__is_username_unique(data.sender_name):
-                        server_socket.sendto(pickle.dumps(SimpleMessage(sender_name='s',
-                                                                        receiver_name=data.sender_name,
-                                                                        message=f"User with name {data.sender_name} "
-                                                                                f"already exists!")), addr)
+                if type(message) is ConnectionRequest:
+                    if not self.is_username_unique(message.sender_name):
+                        sock.sendto(pickle.dumps(SimpleMessage(sender_name='s',
+                                                               receiver_name=message.sender_name,
+                                                               message=f"User with name {message.sender_name} "
+                                                               f"already exists!")), addr)
                     else:
-                        new_user = User(address=addr, name=data.sender_name)
+                        new_user = User(address=addr, name=message.sender_name)
                         self.users.append(new_user)
                         self.send_message(SimpleMessage(sender_name='s',
-                                                        receiver_name=data.sender_name,
-                                                        message='pfg_ip_response_serv'), server_socket)
-                        self.notify_about_new_user(new_user, server_socket)
-                        self.notify_about_current_users(server_socket)
-                elif type(data) is SimpleMessage:
-                    self.send_message(data, server_socket)
-                elif type(data) is File:
-                    file_desc = data.descriptor
+                                                        receiver_name=message.sender_name,
+                                                        message='pfg_ip_response_serv'))
+                        self.notify_about_new_user(new_user)
+                        # self.notify_about_current_users()
+                elif type(message) is SimpleMessage:
+                    self.send_message(message)
+                elif type(message) is File:
+                    file_desc = message.descriptor
                     file_key = get_equal_dict_key(files, file_desc)
 
                     if file_key is not None:
-                        files[file_key][data.block_index] = data
-                        # print(f"current blocks: {len(files[file_key])}, {data.blocks_amount} is needed")
+                        files[file_key][message.block_index] = message
+                        # print(f"current blocks: {len(files[file_key])}, {message.blocks_amount} is needed")
                     else:
                         self.send_message(SimpleMessage(sender_name='s',
-                                                        receiver_name=data.descriptor.sender_name,
-                                                        message=f"File {data.descriptor.file_name}"
-                                                                f"{data.descriptor.file_extension} "
-                                                                f"is uploading to server"), server_socket)
+                                                        receiver_name=message.descriptor.sender_name,
+                                                        message=f"File {message.descriptor.file_name}"
+                                                                f"{message.descriptor.file_extension} "
+                                                                f"is uploading to server"))
                         file_key = file_desc
                         files[file_key] = {}
-                        files[file_key][data.block_index] = data
+                        files[file_key][message.block_index] = message
 
-                    if len(files[file_key]) == data.blocks_amount:
+                    if len(files[file_key]) == message.blocks_amount:
                         self.send_message(SimpleMessage(sender_name='s',
-                                                        receiver_name=data.descriptor.sender_name,
-                                                        message=f"File {data.descriptor.file_name}"
-                                                                f"{data.descriptor.file_extension} "
-                                                                f"is uploaded to server"), server_socket)
-                        threading.Thread(target=self.__send_file, args=(file_key, files, server_socket,)).start()
+                                                        receiver_name=message.descriptor.sender_name,
+                                                        message=f"File {message.descriptor.file_name}"
+                                                                f"{message.descriptor.file_extension} "
+                                                                f"is uploaded to server"))
+                        threading.Thread(target=self.send_file, args=(file_key, files,)).start()
