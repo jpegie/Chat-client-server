@@ -29,7 +29,6 @@ class ChatClientApp(QtWidgets.QMainWindow, ui.Ui_Window_Main):
         self.Button_Send.clicked.connect(lambda: self.curr_client.send(self.TextBox_Message.toPlainText(),
                                                                        self.Combo_CurrentUsers.currentText()))
         self.Button_Connect.clicked.connect(lambda: self.curr_client.connect(self.TextBox_Login.toPlainText()))
-        self.Button_Connect.clicked.connect(self.curr_client.listen)
         self.Button_SetupFolder.clicked.connect(self.setup_folder)
 
     def setup_folder(self):

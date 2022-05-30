@@ -19,7 +19,7 @@ UDP_MAX_SEND_SIZE = 60000
 UDP_MAX_RECEIVE_SIZE = UDP_MAX_SIZE
 
 SERVER_PORT = 6965
-DELAY_TO_SEND_FILE = 0.001
+DELAY_TO_SEND_FILE = 0.0015
 
 
 def split_list(alist, wanted_parts=1, part_max_capacity=UDP_MAX_SEND_SIZE):
@@ -87,6 +87,9 @@ class Client:
         try:
             self.server_socket.sendto(pickled_data, self.server_addr)
             binary_message, address = self.server_socket.recvfrom(1024)
+
+            self.server_socket.settimeout(None)
+
             message = pickle.loads(binary_message)
             if message:
                 if type(message) is SimpleMessage:
@@ -96,15 +99,15 @@ class Client:
                         self.server_addr = address
                         self.ui_conn_button.setEnabled(False)
                         self.ui_login.setEnabled(False)
+
+                        self.listen()
+
                     else:
                         self.__add_message_to_chat(message)
                 elif type(message) is CurrentUsers:
                     self.__update_users(message.users)
         except Exception as e:
             print(str(e))
-            self.__add_message_to_chat(only_str=str(e))
-
-        self.server_socket.settimeout(None)
 
     def __send_file(self, receiver=''):
 

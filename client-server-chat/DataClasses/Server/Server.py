@@ -10,7 +10,7 @@ from DataClasses.Common.User import User
 from DataClasses.Common.CurrentUsers import CurrentUsers
 
 UDP_MAX_SIZE = 65535
-DELAY_TO_SEND_FILE = 0.001
+DELAY_TO_SEND_FILE = 0.0015
 
 
 def first(iterable, default=None):
@@ -73,10 +73,10 @@ class Server:
     def notify_about_current_users(self):
         for u in self.users:
             self.send_message(CurrentUsers(receiver_name=u.name, users=self.users))
-            self.send_message(SimpleMessage(sender_name='s',
-                                            receiver_name=u.name,
-                                            message=("Current users: " +
-                                                     ", ".join(m.name for m in self.users))))
+            # self.send_message(SimpleMessage(sender_name='s',
+            #                                 receiver_name=u.name,
+            #                                 message=("Current users: " +
+            #                                          ", ".join(m.name for m in self.users))))
 
     def send_file(self, file_key, files):
         blocks = files[file_key]
@@ -125,10 +125,10 @@ class Server:
 
                 if type(message) is ConnectionRequest:
                     if not self.is_username_unique(message.sender_name):
-                        sock.sendto(pickle.dumps(SimpleMessage(sender_name='s',
-                                                               receiver_name=message.sender_name,
-                                                               message=f"User with name {message.sender_name} "
-                                                               f"already exists!")), addr)
+                        self.sock.sendto(pickle.dumps(SimpleMessage(sender_name='s',
+                                                                    receiver_name=message.sender_name,
+                                                                    message=f"User with name {message.sender_name} "
+                                                                    f"already exists!")), addr)
                     else:
                         new_user = User(address=addr, name=message.sender_name)
                         self.users.append(new_user)
@@ -136,10 +136,11 @@ class Server:
                                                         receiver_name=message.sender_name,
                                                         message='pfg_ip_response_serv'))
                         self.notify_about_new_user(new_user)
-                        # self.notify_about_current_users()
+                        self.notify_about_current_users()
                 elif type(message) is SimpleMessage:
                     self.send_message(message)
                 elif type(message) is File:
+                    file_desc = message.descriptor
                     file_desc = message.descriptor
                     file_key = get_equal_dict_key(files, file_desc)
 
