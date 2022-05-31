@@ -4,9 +4,10 @@
     <list default="true" id="e2fc97b6-a2e1-456e-86ca-3c91b3b7d6f9" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DataClasses/Client/Client.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Client/Client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DataClasses/Client/ClientApp.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Client/ClientApp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DataClasses/Common/File.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Common/File.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DataClasses/Common/FileDescriptor.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Common/FileDescriptor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DataClasses/Common/SimpleMessage.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Common/SimpleMessage.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DataClasses/Server/Server.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Server/Server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server-app.py" beforeDir="false" afterPath="$PROJECT_DIR$/server-app.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -126,13 +127,23 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/DataClasses/Server/Server.py</url>
-          <line>189</line>
-          <option name="timeStamp" value="12" />
+          <line>149</line>
+          <option name="timeStamp" value="53" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/DataClasses/Server/Server.py</url>
           <line>142</line>
-          <option name="timeStamp" value="13" />
+          <option name="timeStamp" value="60" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/DataClasses/Client/Client.py</url>
+          <line>220</line>
+          <option name="timeStamp" value="64" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/DataClasses/Client/Client.py</url>
+          <line>245</line>
+          <option name="timeStamp" value="65" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
@@ -166,6 +177,7 @@
         <watch expression="files[file_]" language="Python" />
         <watch expression="self.users" />
         <watch expression="self.users[receiver_name]" />
+        <watch expression="message.file_desc.packets_amount" />
       </configuration>
     </watches-manager>
   </component>

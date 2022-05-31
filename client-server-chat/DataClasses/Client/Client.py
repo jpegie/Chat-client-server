@@ -15,12 +15,12 @@ from DataClasses.Common.FileDescriptor import FileDescriptor
 from DataClasses.Common.CurrentUsers import CurrentUsers
 
 UDP_MAX_SIZE = 65535  # max is 65535, but header is 8 bytes
-UDP_MAX_SEND_SIZE = 60000
+UDP_MAX_SEND_SIZE = 55000
 UDP_MAX_RECEIVE_SIZE = UDP_MAX_SIZE
 
 SERVER_PORT = 6965
-DELAY_TO_SEND_FILE = 0.0000
-
+DELAY_TO_SEND_FILE = 0.00
+PACKET_SIZE = 4096
 TCP_PORT_DIFF = 51
 
 
@@ -128,19 +128,28 @@ class Client:
         file_name = pathlib.Path(self.attached_file).name.split(".")[0]
         file_extension = pathlib.Path(self.attached_file).suffix
         file_binary = open(self.attached_file, "rb").read()
-        file_descriptor = FileDescriptor(file_name=file_name,
-                                         file_extension=file_extension,
-                                         sender_name=self.name,
-                                         receiver_name=str(receiver))
+        # file_descriptor = FileDescriptor(file_name=file_name,
+        #                                  file_extension=file_extension,
+        #                                  sender_name=self.name,
+        #                                  receiver_name=str(receiver))
+
+        # blocks_amount = math.ceil(len(file_binary) / UDP_MAX_SEND_SIZE)  # UDP_MAX_SIZE
+        pickled_file = pickle.dumps(file_binary)
+        packets_amount = len(file_binary)
+        file_desc = FileDescriptor(packets_amount=packets_amount,
+                                   name=file_name,
+                                   extension=file_extension)
 
         msg = SimpleMessage(sender_name=self.name,
                             receiver_name=str(receiver),
                             message=f"Sending file {file_name}{file_extension} "
-                                    f"[{int(len(file_binary) / 1024 / 1024)} mib] to {receiver}")
+                                    f"[{int(len(file_binary) / 1024 / 1024)} mib] to {receiver}",
+                            file_desc=file_desc)
         self.send_message(msg)
-        #pickled_whole = pickle.dumps(file_binary)
-        self.send_file(file_binary)
+        self.server_tcp.send(file_binary)
+        # self.send_message(file_binary)
         return
+
         blocks_amount = math.ceil(len(file_binary) / UDP_MAX_SEND_SIZE)  # UDP_MAX_SIZE
         if blocks_amount > 1:
             blocks = split_list(file_binary, blocks_amount)
@@ -151,7 +160,7 @@ class Client:
                                      start=True if i == 0 else False,
                                      end=True if i + 1 == blocks_amount else False,
                                      blocks_amount=blocks_amount)
-                self.send_file(attached_file)
+                self.send_message(attached_file)
                 time.sleep(DELAY_TO_SEND_FILE)  # THE WORST WAY NOT TO LOSE DATA
         else:
             attached_file = File(binary=file_binary,
@@ -159,7 +168,7 @@ class Client:
                                  start=True,
                                  end=True,
                                  blocks_amount=1)
-            self.send_file(attached_file)
+            self.send_message(attached_file)
             time.sleep(DELAY_TO_SEND_FILE)  # THE WORST WAY NOT TO LOSE DATA
 
     def send(self, message='', receiver=''):
@@ -186,19 +195,10 @@ class Client:
         pickled_data = pickle.dumps(message)
         self.server_tcp.send(pickled_data)
 
-    def send_file(self, file):
-        pickled_data = pickle.dumps(file)
-        self.server_tcp.send(pickled_data)
-
-    def save_file(self, descriptor, blocks_dict):  # descriptor is FileDescriptor, blocks is array of File
-        blocks = []
-        for block_key in blocks_dict.keys():
-            blocks.append(blocks_dict[block_key])
-        blocks.sort(key=key_to_sort)
-        with open(f"{self.folder_for_saving}/{descriptor.file_name}{descriptor.file_extension}", "wb") as f:
-            for block in blocks:
-                f.write(block.binary)
-        self.ui_chat.addItem(f"🟢 {descriptor.file_name}{descriptor.file_extension} is saved")
+    def save_file(self, file, file_desc):  # descriptor is FileDescriptor, blocks is array of File
+        with open(f"{self.folder_for_saving}/{file_desc.name}{file_desc.extension}", "wb") as f:
+            f.write(bytes(file))
+        self.ui_chat.addItem(f"🟢 {file_desc.name}{file_desc.extension} is saved")
 
     def __add_message_to_chat(self, message=None, only_str=''):
         if only_str != '' and message is None:
@@ -215,10 +215,9 @@ class Client:
             self.ui_current_users.setCurrentIndex(0)
 
     def __listen(self):
-        current_getting_files = {}  # descriptor : {block_index : block_data}
         while True:
             try:
-                bin_data = self.server_tcp.recv(UDP_MAX_RECEIVE_SIZE)
+                bin_data = self.server_tcp.recv(4096)
                 if not bin_data:
                     continue
                 else:
@@ -229,27 +228,24 @@ class Client:
                         continue
 
                     if type(message) is SimpleMessage:
-                        if message.message == "RequestFromServerForNickname":
-                            self.send_message(SimpleMessage(sender_name=self.name,
-                                                            receiver_name='s',
-                                                            message=self.name))
+                        if message.file_desc is None:
+                            if message.message == "RequestFromServerForNickname":
+                                self.send_message(SimpleMessage(sender_name=self.name,
+                                                                receiver_name='s',
+                                                                message=self.name))
+                            else:
+                                self.__add_message_to_chat(message)
                         else:
-                            self.__add_message_to_chat(message)
-                    elif type(message) is File:
-                        file_key = get_equal_dict_key(current_getting_files, message.descriptor)
-                        if file_key is not None:
-                            current_getting_files[file_key][message.block_index] = message
-                            print(f'got blocks: {len(current_getting_files[file_key])}/{message.blocks_amount}')
-                        else:
-                            file_key = message.descriptor
-                            current_getting_files[file_key] = {}
-                            current_getting_files[file_key][message.block_index] = message
+                            self.__add_message_to_chat(only_str=f"Receiving file from {message.sender_name}")
+                            data = []
+                            file = self.server_tcp.recv(message.file_desc.packets_amount)
 
-                        if len(current_getting_files[file_key]) == message.blocks_amount:
-                            self.save_file(file_key, current_getting_files[file_key])
+                            # for i in range(0, message.file_desc.packets_amount):
+                            #     data.append(self.server_tcp.recv(PACKET_SIZE))
+                            # file = b''.join(data)
+                            self.save_file(file, message.file_desc)
                     elif type(message) is CurrentUsers:
                         self.__update_users(message.users)
             except Exception as e:
                 print(str(e))
-                #self.server_tcp.close()
 

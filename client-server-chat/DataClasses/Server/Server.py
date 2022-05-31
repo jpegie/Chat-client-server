@@ -3,6 +3,7 @@ import pickle
 import threading
 import time
 
+from DataClasses.Common import FileDescriptor
 from DataClasses.Common.SimpleMessage import SimpleMessage
 from DataClasses.Common.File import File
 from DataClasses.Common.ConnectionRequest import ConnectionRequest
@@ -12,6 +13,7 @@ from DataClasses.Common.CurrentUsers import CurrentUsers
 UDP_MAX_SIZE = 65535
 DELAY_TO_SEND_FILE = 0.000
 TCP_PORT_DIFF = 51
+PACKET_SIZE = 4096
 
 
 def first(iterable, default=None):
@@ -71,7 +73,7 @@ class Server:
         threading.Thread(target=self.__listen_to_new_users, daemon=True).start()
         threading.Thread(target=self.__listen_for_tcp_clients, daemon=True).start()
 
-    def send_message(self, data, receiver=None):
+    def send_message(self, data, file=None, receiver=None):
 
         if receiver is not None:
             pickled_data = pickle.dumps(data)
@@ -79,23 +81,31 @@ class Server:
         else:
             receiver_name = data.receiver_name
             sender_name = data.sender_name
-            try:
-                if (type(data) is SimpleMessage) and (receiver_name in self.users) and (sender_name in self.users):
-                    pickled_data = pickle.dumps(data)
-                    self.users[sender_name].send(pickled_data)
-                    self.users[receiver_name].send(pickled_data)
-                elif receiver_name in self.users:
-                    pickled_data = pickle.dumps(data)
-                    self.users[receiver_name].send(pickled_data)
-            except Exception as e:
-                print(str(e))
+
+            if (file is not None) and (receiver_name in self.users):
+                pickled_data = pickle.dumps(data)
+                # pickled_file = pickle.dumps(file)
+                self.users[receiver_name].send(pickled_data)
+                time.sleep(1)
+                self.users[receiver_name].sendall(file)
+            else:
+                try:
+                    if (type(data) is SimpleMessage) and (receiver_name in self.users) and (sender_name in self.users):
+                        pickled_data = pickle.dumps(data)
+                        self.users[sender_name].send(pickled_data)
+                        self.users[receiver_name].send(pickled_data)
+                    elif receiver_name in self.users:
+                        pickled_data = pickle.dumps(data)
+                        self.users[receiver_name].send(pickled_data)
+                except Exception as e:
+                    print(str(e))
 
     def notify_about_new_user(self, user):
         data = SimpleMessage(sender_name="s", message=f"Welcome {user} to this chat!")
 
         for u in self.users.keys():
             data.receiver_name = u
-            self.send_message(data)
+            self.send_message(data=data)
 
     def notify_about_current_users(self):
         list_of_users = []
@@ -103,28 +113,6 @@ class Server:
             list_of_users.append(str(usr))
         for u in self.users:
             self.send_message(CurrentUsers(receiver_name=str(u), users=list_of_users), receiver=self.users[u])
-
-    def send_file(self, file_key, files):
-        blocks = files[file_key]
-
-        receiver_name = file_key.receiver_name
-        sender_name = file_key.sender_name
-
-        if (receiver_name in self.users) and (sender_name in self.users):
-            print(f"Blocks to send = {len(blocks)}")
-            for block_key in blocks.keys():
-                pickled_data = pickle.dumps(blocks[block_key])
-                self.users[receiver_name].send(pickled_data)
-                time.sleep(DELAY_TO_SEND_FILE)  # THE WORST WAY NOT TO LOSE DATA
-
-            files.pop(file_key)
-
-            message = SimpleMessage(
-                message=f'File {file_key.file_name}{file_key.file_extension} delivered to {file_key.receiver_name}',
-                sender_name='s',
-                receiver_name=file_key.receiver_name)
-            pickled_message = pickle.dumps(message)
-            self.users[sender_name].send(pickled_message)
 
     def is_username_unique(self, name):
         if name in self.users.keys():
@@ -134,51 +122,36 @@ class Server:
     binary_message = bytes()
 
     def __listen_to_client(self, client, client_name):
-
-        files = {}  # descriptors : [] array of File - blocks of real file
+        data = []
         while True:
-            while True:
-                packet = client.recv(4096)
-                if not packet:
-                    break
-                self.binary_message += packet
+            binary_message = client.recv(PACKET_SIZE)
+
             try:
-                message = pickle.loads(self.binary_message)
-                self.binary_message = bytes()
+                message = pickle.loads(binary_message)
             except Exception as e:
                 print(str(e))
                 continue
-
             if type(message) is SimpleMessage:
-                self.send_message(message)
-            elif type(message) is File:
-                file_desc = message.descriptor
-                file_key = get_equal_dict_key(files, file_desc)
+                if message.file_desc is not None:
 
-                if file_key is not None:
-                    files[file_key][message.block_index] = message
-                    print(f"current blocks: {len(files[file_key])}, {message.blocks_amount} is needed")
+                    # for i in range(0, message.file_desc.packets_amount):
+                    #     data.append(client.recv(PACKET_SIZE))
+                    try:
+                        # file_binary = b''.join(data)
+                        # incoming_file = pickle.loads(bytes(file_binary))
+                        file_binary = client.recv(message.file_desc.packets_amount)
+                        self.send_message(message, file=file_binary)
+                    except Exception as e:
+                        print(str(e))
+                        continue
+                    finally:
+                        data = []
                 else:
-                    self.send_message(SimpleMessage(sender_name='s',
-                                                    receiver_name=message.descriptor.sender_name,
-                                                    message=f"File {message.descriptor.file_name}"
-                                                            f"{message.descriptor.file_extension} "
-                                                            f"is uploading to server"))
-                    file_key = file_desc
-                    files[file_key] = {}
-                    files[file_key][message.block_index] = message
-
-                if len(files[file_key]) == message.blocks_amount:
-                    self.send_message(SimpleMessage(sender_name='s',
-                                                    receiver_name=message.descriptor.sender_name,
-                                                    message=f"File {message.descriptor.file_name}"
-                                                            f"{message.descriptor.file_extension} "
-                                                            f"is uploaded to server"))
-                    threading.Thread(target=self.send_file, args=(file_key, files,), daemon=True).start()
+                    self.send_message(message)
 
     def __process_new_client(self, client):
         request_for_nickname = SimpleMessage(sender_name='s', message="RequestFromServerForNickname")
-        self.send_message(request_for_nickname, client)
+        self.send_message(request_for_nickname, receiver=client)
         binary_message = client.recv(UDP_MAX_SIZE)
         request = pickle.loads(binary_message)  # is SimpleMessage
 
@@ -187,7 +160,7 @@ class Server:
             self.users[request.sender_name] = client
             self.notify_about_new_user(request.sender_name)
             self.notify_about_current_users()
-            threading.Thread(target=self.__listen_to_client, args=(client, request.sender_name,), daemon=True).start()
+            threading.Thread(target=self.__listen_to_client, args=(client, request.sender_name,)).start()
 
         self.users_locker.release()
 
@@ -195,7 +168,7 @@ class Server:
         while True:
             client, addr = self.sock_tcp.accept()
             print(f"New client with addr: {addr}. {client}")
-            threading.Thread(target=self.__process_new_client, args=(client, ), daemon=True).start()
+            threading.Thread(target=self.__process_new_client, args=(client,), daemon=True).start()
 
     def __listen_to_new_users(self):
         print(f'Listening at {self.host} : {self.port}')
@@ -215,7 +188,7 @@ class Server:
                         self.sock.sendto(pickle.dumps(SimpleMessage(sender_name='s',
                                                                     receiver_name=message.sender_name,
                                                                     message=f"User with name {message.sender_name} "
-                                                                    f"already exists!")), addr)
+                                                                            f"already exists!")), addr)
                     else:
                         self.sock.sendto(pickle.dumps(SimpleMessage(sender_name='s',
                                                                     receiver_name=message.sender_name,
@@ -223,4 +196,3 @@ class Server:
 
                         # self.notify_about_new_user(new_user)
                         # self.notify_about_current_users()
-
