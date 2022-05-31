@@ -21,8 +21,6 @@ UDP_MAX_RECEIVE_SIZE = UDP_MAX_SIZE
 SERVER_PORT = 6965
 DELAY_TO_SEND_FILE = 0.0015
 
-TCP_PORT_DIFF = 51
-
 
 def split_list(alist, wanted_parts=1, part_max_capacity=UDP_MAX_SEND_SIZE):
     return [alist[i * part_max_capacity: (i + 1) * part_max_capacity]
@@ -50,7 +48,6 @@ class Client:
 
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     server_addr = ('255.255.255.255', SERVER_PORT)
 
@@ -89,7 +86,7 @@ class Client:
 
         try:
             self.server_socket.sendto(pickled_data, self.server_addr)
-            binary_message, address = self.server_socket.recvfrom(UDP_MAX_RECEIVE_SIZE)
+            binary_message, address = self.server_socket.recvfrom(1024)
 
             self.server_socket.settimeout(None)
 
@@ -102,10 +99,7 @@ class Client:
                         self.server_addr = address
                         self.ui_conn_button.setEnabled(False)
                         self.ui_login.setEnabled(False)
-                        self.server_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        self.server_tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                        self.server_tcp.connect((self.server_addr[0], self.server_addr[1] + TCP_PORT_DIFF))
-                        print("Successfully connected to server by TCP!")
+
                         self.listen()
 
                     else:
@@ -174,11 +168,11 @@ class Client:
 
     def send_message(self, message):
         pickled_data = pickle.dumps(message)
-        self.server_tcp.send(pickled_data)
+        self.server_socket.sendto(pickled_data, self.server_addr)
 
     def send_file(self, file):
         pickled_data = pickle.dumps(file)
-        self.server_tcp.send(pickled_data)
+        self.server_socket.sendto(pickled_data, self.server_addr)
 
     def save_file(self, descriptor, blocks_dict):  # descriptor is FileDescriptor, blocks is array of File
         blocks = []
@@ -207,39 +201,29 @@ class Client:
     def __listen(self):
         current_getting_files = {}  # descriptor : {block_index : block_data}
         while True:
-            try:
-                bin_data = self.server_tcp.recv(UDP_MAX_RECEIVE_SIZE)
-                if not bin_data:
+            bin_data, addr = self.server_socket.recvfrom(UDP_MAX_RECEIVE_SIZE)
+            if not bin_data:
+                continue
+            else:
+                try:
+                    message = pickle.loads(bin_data)
+                except:
                     continue
-                else:
-                    try:
-                        message = pickle.loads(bin_data)
-                    except Exception as e:
-                        print(str(e))
-                        continue
+                if type(message) is File:
+                    file_key = get_equal_dict_key(current_getting_files, message.descriptor)
+                    if file_key is not None:
+                        current_getting_files[file_key][message.block_index] = message
+                        print(f'got blocks: {len(current_getting_files[file_key])}/{message.blocks_amount}')
+                    else:
+                        file_key = message.descriptor
+                        current_getting_files[file_key] = {}
+                        current_getting_files[file_key][message.block_index] = message
 
-                    if type(message) is SimpleMessage:
-                        if message.message == "RequestFromServerForNickname":
-                            self.send_message(SimpleMessage(sender_name=self.name,
-                                                            receiver_name='s',
-                                                            message=self.name))
-                        else:
-                            self.__add_message_to_chat(message)
-                    elif type(message) is File:
-                        file_key = get_equal_dict_key(current_getting_files, message.descriptor)
-                        if file_key is not None:
-                            current_getting_files[file_key][message.block_index] = message
-                            print(f'got blocks: {len(current_getting_files[file_key])}/{message.blocks_amount}')
-                        else:
-                            file_key = message.descriptor
-                            current_getting_files[file_key] = {}
-                            current_getting_files[file_key][message.block_index] = message
+                    if len(current_getting_files[file_key]) == message.blocks_amount:
+                        self.save_file(file_key, current_getting_files[file_key])
 
-                        if len(current_getting_files[file_key]) == message.blocks_amount:
-                            self.save_file(file_key, current_getting_files[file_key])
-                    elif type(message) is CurrentUsers:
-                        self.__update_users(message.users)
-            except Exception as e:
-                print(str(e))
-                self.server_tcp.close()
+                elif type(message) is SimpleMessage:
+                    self.__add_message_to_chat(message)
 
+                elif type(message) is CurrentUsers:
+                    self.__update_users(message.users)
