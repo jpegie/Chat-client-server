@@ -19,7 +19,7 @@ UDP_MAX_SEND_SIZE = 60000
 UDP_MAX_RECEIVE_SIZE = UDP_MAX_SIZE
 
 SERVER_PORT = 6965
-DELAY_TO_SEND_FILE = 0.0015
+DELAY_TO_SEND_FILE = 0.0000
 
 TCP_PORT_DIFF = 51
 
@@ -70,6 +70,12 @@ class Client:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
+    def close(self):
+        try:
+            self.server_tcp.close()
+        except:
+            return
+
     def set_ui_conn_button(self, button):
         self.ui_conn_button = button
 
@@ -102,9 +108,11 @@ class Client:
                         self.server_addr = address
                         self.ui_conn_button.setEnabled(False)
                         self.ui_login.setEnabled(False)
+
                         self.server_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         self.server_tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                         self.server_tcp.connect((self.server_addr[0], self.server_addr[1] + TCP_PORT_DIFF))
+
                         print("Successfully connected to server by TCP!")
                         self.listen()
 
@@ -130,7 +138,9 @@ class Client:
                             message=f"Sending file {file_name}{file_extension} "
                                     f"[{int(len(file_binary) / 1024 / 1024)} mib] to {receiver}")
         self.send_message(msg)
-
+        #pickled_whole = pickle.dumps(file_binary)
+        self.send_file(file_binary)
+        return
         blocks_amount = math.ceil(len(file_binary) / UDP_MAX_SEND_SIZE)  # UDP_MAX_SIZE
         if blocks_amount > 1:
             blocks = split_list(file_binary, blocks_amount)
@@ -199,8 +209,8 @@ class Client:
     def __update_users(self, users):
         self.ui_current_users.clear()
         for user in users:
-            if user.name != self.name:
-                self.ui_current_users.addItem(user.name)
+            if user != self.name:
+                self.ui_current_users.addItem(user)
         if self.ui_current_users.count() != 0:
             self.ui_current_users.setCurrentIndex(0)
 
@@ -241,5 +251,5 @@ class Client:
                         self.__update_users(message.users)
             except Exception as e:
                 print(str(e))
-                self.server_tcp.close()
+                #self.server_tcp.close()
 

@@ -4,8 +4,9 @@
     <list default="true" id="e2fc97b6-a2e1-456e-86ca-3c91b3b7d6f9" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DataClasses/Client/Client.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Client/Client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/DataClasses/Common/CurrentUsers.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Common/CurrentUsers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DataClasses/Client/ClientApp.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Client/ClientApp.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DataClasses/Server/Server.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataClasses/Server/Server.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server-app.py" beforeDir="false" afterPath="$PROJECT_DIR$/server-app.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -125,8 +126,13 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/DataClasses/Server/Server.py</url>
-          <line>74</line>
-          <option name="timeStamp" value="19" />
+          <line>189</line>
+          <option name="timeStamp" value="12" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/DataClasses/Server/Server.py</url>
+          <line>142</line>
+          <option name="timeStamp" value="13" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

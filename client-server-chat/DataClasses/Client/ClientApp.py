@@ -1,5 +1,6 @@
-from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QFileDialog
+from PyQt5 import QtWidgets, QtGui
+
 from DataClasses.Ui import ui
 from DataClasses.Client import Client
 
@@ -16,6 +17,10 @@ class ChatClientApp(QtWidgets.QMainWindow, ui.Ui_Window_Main):
         self.curr_client.set_ui_conn_button(self.Button_Connect)
         self.curr_client.set_ui_login(self.TextBox_Login)
         self.curr_client.set_ui_current_users(self.Combo_CurrentUsers)
+
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        self.curr_client.close()
+        a0.accept()
 
     def select_file(self):
         dlg = QFileDialog()
